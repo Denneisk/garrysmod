@@ -212,6 +212,14 @@ function ControllerAddons( $scope, $element, $rootScope, $location )
 
 		for ( var k in subscriptions.GetAll() ) $scope.SelectedItems[ k ] = true;
 	}
+	$scope.ToggleSelect = function( file, event )
+	{
+		var en = event.target.nodeName.toLowerCase();
+		if ( en != "controls" && en != "description" && en != "workshopicon" ) return;
+
+		$scope.SelectedItems[file.id] = !$scope.SelectedItems[file.id];
+		if ( event ) event.stopPropagation();
+	}
 	$scope.EnableAllSelected = function()
 	{
 		for ( var k in $scope.SelectedItems )
@@ -406,7 +414,7 @@ function ControllerAddons( $scope, $element, $rootScope, $location )
 		$scope.ImportPresetOpen = false;
 
 		// Try extracting workshop ID
-		if ( $scope.ImportPresetSource.indexOf( "http" ) == 0 || /([0-9]+)/.test( $scope.ImportPresetSource ) )
+		if ( $scope.ImportPresetSource.indexOf( "http" ) === 0 || /^([0-9]+)$/.test( $scope.ImportPresetSource ) )
 		{
 			$scope.ImportPresetLoading = true;
 			var re = /https?:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?(?:.*)id=([0-9]+)(?:.*)/;

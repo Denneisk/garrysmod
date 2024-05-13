@@ -1,4 +1,4 @@
-//====== Copyright © 1996-2005, Valve Corporation, All rights reserved. =======
+//====== Copyright Â© 1996-2005, Valve Corporation, All rights reserved. =======
 //
 // Purpose: General game definition file (.fgd)
 //
@@ -104,6 +104,7 @@
 
 	// Inputs
 	input Kill(void) : "Removes this entity from the world."
+	input Use(void) : "Simulates player USE on the target entity."
 	input KillHierarchy(void) : "Removes this entity and all its children from the world."
 	input AddOutput(string) : "Adds an entity I/O connection to this entity. Format: <output name> <targetname>:<inputname>:<parameter>:<delay>:<max times to fire (-1 == infinite)>. Very dangerous, use with care."
 	input FireUser1(void) : "Causes this entity's OnUser1 output to be fired."
@@ -2463,7 +2464,7 @@
 [
 ]
 
-@PointClass base(Targetname, Parentname) size(-8 -8 -8, 8 8 8) = point_message :
+@PointClass base(Targetname, Parentname) sphere(radius) size(-8 -8 -8, 8 8 8) = point_message :
 	"An entity that displays a text message in the world, at its origin."
 [
 	spawnflags(flags) =
@@ -3669,6 +3670,7 @@
 
 @BaseClass base(Targetname, Parentname, RenderFields, Global, Shadow, GMODSandbox) = Door
 [
+	chainstodoor(target_destination) : "Linked Door" : : "(Optional) Passes the door's +use inputs and touch events onto a different door, so it also is activated."
 	speed(integer) : "Speed" : 100 : "The speed at which the door moves."
 	master(string) : "Master (Obsolete)" : : "Legacy support: The name of a master entity. If the master hasn't been activated, this button cannot be used."
 	noise1(sound) : "Start Sound" : : "Sound to play when the door starts moving."
@@ -5442,7 +5444,7 @@
 		1 : "Yes"
 	]
 
-	generatelightmaps(choices) : "Generate lightmaps" : 0 : "Generate and use lightmaps for this static prop. Requires vrad.exe to be ran with -StaticPropLighting parameter" =
+	generatelightmaps(choices) : "Generate lightmaps" : 0 : "Generate and use lightmaps for this static prop. The model must not have overlapping UVs! Requires vrad.exe to be ran with -StaticPropLighting parameter." =
 	[
 		0 : "No"
 		1 : "Yes"

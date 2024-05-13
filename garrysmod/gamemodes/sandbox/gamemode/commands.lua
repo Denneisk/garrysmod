@@ -319,13 +319,13 @@ function DoPlayerEntitySpawn( ply, entity_name, model, iSkin, strBody )
 	ent:SetModel( model )
 	ent:SetSkin( iSkin )
 	ent:SetAngles( ang )
-	ent:SetBodyGroups( strBody )
+	if ( strBody ) then ent:SetBodyGroups( strBody ) end
 	ent:SetPos( tr.HitPos )
 	ent:Spawn()
 	ent:Activate()
 
 	-- Special case for effects
-	if ( entity_name == "prop_effect" && IsValid( ent.AttachedEntity ) ) then
+	if ( strBody && entity_name == "prop_effect" && IsValid( ent.AttachedEntity ) ) then
 		ent.AttachedEntity:SetBodyGroups( strBody )
 	end
 
@@ -362,10 +362,7 @@ function DoPlayerEntitySpawn( ply, entity_name, model, iSkin, strBody )
 
 end
 
-local function InternalSpawnNPC( ply, Position, Normal, Class, Equipment, SpawnFlagsSaved, NoDropToFloor )
-
-	local NPCList = list.Get( "NPC" )
-	local NPCData = NPCList[ Class ]
+local function InternalSpawnNPC( NPCData, ply, Position, Normal, Class, Equipment, SpawnFlagsSaved, NoDropToFloor )
 
 	-- Don't let them spawn this entity if it isn't in our NPC Spawn list.
 	-- We don't want them spawning any entity they like!
@@ -426,6 +423,10 @@ local function InternalSpawnNPC( ply, Position, Normal, Class, Equipment, SpawnF
 	if ( NPCData.Rotate ) then Angles = Angles + NPCData.Rotate end
 
 	NPC:SetAngles( Angles )
+
+	if ( NPCData.SnapToNormal ) then
+		NPC:SetAngles( Normal:Angle() )
+	end
 
 	--
 	-- Does this NPC have a specified model? If so, use it.
@@ -506,11 +507,14 @@ local function InternalSpawnNPC( ply, Position, Normal, Class, Equipment, SpawnF
 	NPC.NPCTable = NPCData
 	NPC._wasSpawnedOnCeiling = wasSpawnedOnCeiling
 
-	-- For those NPCs that set their model in Spawn function
+	-- For those NPCs that set their model/skin in Spawn function
 	-- We have to keep the call above for NPCs that want a model set by Spawn() time
 	-- BAD: They may adversly affect entity collision bounds
 	if ( NPCData.Model && NPC:GetModel():lower() != NPCData.Model:lower() ) then
 		NPC:SetModel( NPCData.Model )
+	end
+	if ( NPCData.Skin ) then
+		NPC:SetSkin( NPCData.Skin )
 	end
 
 	if ( bDropToFloor ) then
@@ -519,6 +523,7 @@ local function InternalSpawnNPC( ply, Position, Normal, Class, Equipment, SpawnF
 
 	if ( NPCData.Health ) then
 		NPC:SetHealth( NPCData.Health )
+		NPC:SetMaxHealth( NPCData.Health )
 	end
 
 	-- Body groups
@@ -555,8 +560,10 @@ function Spawn_NPC( ply, NPCClassName, WeaponName, tr )
 
 	end
 
+	local NPCData = list.Get( "NPC" )[ NPCClassName ]
+
 	-- Create the NPC if you can.
-	local SpawnedNPC = InternalSpawnNPC( ply, tr.HitPos, tr.HitNormal, NPCClassName, WeaponName )
+	local SpawnedNPC = InternalSpawnNPC( NPCData, ply, tr.HitPos, tr.HitNormal, NPCClassName, WeaponName )
 	if ( !IsValid( SpawnedNPC ) ) then return end
 
 	TryFixPropPosition( ply, SpawnedNPC, tr.HitPos )
@@ -567,10 +574,9 @@ function Spawn_NPC( ply, NPCClassName, WeaponName, tr )
 	end
 
 	-- See if we can find a nice name for this NPC..
-	local NPCList = list.Get( "NPC" )
 	local NiceName = nil
-	if ( NPCList[ NPCClassName ] ) then
-		NiceName = NPCList[ NPCClassName ].Name
+	if ( NPCData ) then
+		NiceName = NPCData.Name
 	end
 
 	-- Add to undo list
@@ -593,25 +599,29 @@ concommand.Add( "gmod_spawnnpc", function( ply, cmd, args ) Spawn_NPC( ply, args
 -- This should be in base_npcs.lua really
 local function GenericNPCDuplicator( ply, mdl, class, equipment, spawnflags, data )
 
+	-- Match the behavior of Spawn_NPC above - class should be the one in the list, NOT the entity class!
+	if ( data.NPCName ) then class = data.NPCName end
+
 	if ( IsValid( ply ) && !gamemode.Call( "PlayerSpawnNPC", ply, class, equipment ) ) then return end
 
 	local NPCData = list.Get( "NPC" )[ class ]
+	-- I don't think we are ready for this
+	-- if ( !NPCData ) then NPCData = data.NPCTable end
 
 	local normal = Vector( 0, 0, 1 )
 	if ( NPCData && NPCData.OnCeiling && ( NPCData.OnFloor && data._wasSpawnedOnCeiling or !NPCData.OnFloor ) ) then
 		normal = Vector( 0, 0, -1 )
 	end
 
-	local ent = InternalSpawnNPC( ply, data.Pos, normal, class, equipment, spawnflags, true )
-
+	local ent = InternalSpawnNPC( NPCData, ply, data.Pos, normal, class, equipment, spawnflags, true )
 	if ( IsValid( ent ) ) then
+
 		local pos = ent:GetPos() -- Hack! Prevents the NPCs from falling through the floor
 
 		duplicator.DoGeneric( ent, data )
 
-		if ( !NPCData.OnCeiling && !NPCData.NoDrop ) then
+		if ( NPCData && !NPCData.OnCeiling && !NPCData.NoDrop ) then
 			ent:SetPos( pos )
-			ent:DropToFloor()
 		end
 
 		if ( IsValid( ply ) ) then
@@ -619,7 +629,10 @@ local function GenericNPCDuplicator( ply, mdl, class, equipment, spawnflags, dat
 			ply:AddCleanup( "npcs", ent )
 		end
 
-		table.Add( ent:GetTable(), data )
+		if ( data.CurHealth ) then ent:SetHealth( data.CurHealth ) end
+		if ( data.MaxHealth ) then ent:SetMaxHealth( data.MaxHealth ) end
+
+		table.Merge( ent:GetTable(), data )
 
 	end
 
@@ -707,6 +720,7 @@ AddNPCToDuplicator( "monster_sentry" )
 -- Portal
 AddNPCToDuplicator( "npc_portal_turret_floor" )
 AddNPCToDuplicator( "npc_rocket_turret" )
+AddNPCToDuplicator( "npc_security_camera" )
 
 --[[---------------------------------------------------------
 	Name: CanPlayerSpawnSENT
